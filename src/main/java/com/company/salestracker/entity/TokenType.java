@@ -1,5 +1,5 @@
 package com.company.salestracker.entity;
 
-public class TokenType {
-
+public enum TokenType {
+	ACCESSTOKEN, AUTHTOKEN, REFRESHTOKEN
 }

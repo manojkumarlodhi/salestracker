@@ -1,8 +1,10 @@
 package com.company.salestracker.repository;
 
-import java.lang.annotation.Target;
+
 
 import org.springframework.data.jpa.repository.JpaRepository;
+
+import com.company.salestracker.entity.Target;
 
 public interface TargetRepository extends JpaRepository<Target, String> {
 

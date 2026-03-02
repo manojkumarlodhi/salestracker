@@ -1,5 +1,6 @@
 package com.company.salestracker.entity;
 
-public class OtpType {
+public enum OtpType {
+	FORGOT_PASSWORD
 
 }

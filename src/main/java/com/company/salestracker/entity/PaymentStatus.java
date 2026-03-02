@@ -1,5 +1,6 @@
 package com.company.salestracker.entity;
 
-public class PaymentStatus {
+public enum PaymentStatus {
+	PENDING,FAILED,SUCCESSFUL
 
 }

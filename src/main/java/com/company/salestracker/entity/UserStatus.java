@@ -1,5 +1,6 @@
 package com.company.salestracker.entity;
 
-public class UserStatus {
-
+public enum UserStatus {
+	PENDING,ACTIVE,INACTIVE, REJECTED
+	
 }
