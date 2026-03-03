@@ -25,9 +25,9 @@ public class LoginRequest {
 	@NotBlank(message = AppConstant.EMAIL_NOT_BLANK)
 	@Email(message = AppConstant.EMAIL_ERROR)
 	@Pattern(regexp = AppConstant.VALID_EMAIL_REGEX, message = AppConstant.EMAIL_ERROR)
-	private String password;
-	
+	private String email;
+
 	@NotBlank(message = AppConstant.PASSWORD_NOT_BLANK)
 	@Pattern(regexp = AppConstant.VALID_PASSWORD_REGEX, message = AppConstant.PASSWORD_ERROR)
-	private String email;
+	private String password;
 }

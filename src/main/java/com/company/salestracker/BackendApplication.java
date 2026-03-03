@@ -1,4 +1,4 @@
-package com.company.salestracker;
+ package com.company.salestracker;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
