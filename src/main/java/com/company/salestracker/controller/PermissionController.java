@@ -33,7 +33,7 @@ public class PermissionController {
 	public ResponseEntity<ApiResponse<List<?>>> viewAllPermisisons() {
 
 		return ResponseEntity
-				.ok(ApiResponse.success("PERMISSIONS fetched successfully", permissionService.getAllPermission()));
+				.ok(ApiResponse.success("permission fetched successfully", permissionService.getAllPermission()));
 	}
 
 	

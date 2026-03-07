@@ -1,5 +1,396 @@
 package com.company.salestracker.service.impl;
 
-public class RoleServiceImpl {
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import org.springframework.stereotype.Service;
+
+import com.company.salestracker.dto.request.AssignRolesRequest;
+import com.company.salestracker.dto.request.RoleRequest;
+import com.company.salestracker.dto.response.RoleResponse;
+import com.company.salestracker.entity.Permission;
+import com.company.salestracker.entity.Role;
+import com.company.salestracker.entity.User;
+import com.company.salestracker.exception.BadRequestException;
+import com.company.salestracker.mapper.Mapper;
+import com.company.salestracker.repository.PermissionRepository;
+import com.company.salestracker.repository.RoleRepository;
+import com.company.salestracker.repository.UserRepository;
+import com.company.salestracker.service.RoleService;
+import com.company.salestracker.util.AppCommon;
+import com.company.salestracker.util.AppConstant;
+
+import jakarta.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
+@Service
+@RequiredArgsConstructor
+public class RoleServiceImpl implements RoleService {
+	
+
+	private final RoleRepository roleRepo;
+	private final PermissionRepository permissionRepo;
+	private final UserRepository userRepo;
+	private final AppCommon appCommon;
+
+	@Override
+	@Transactional
+	public RoleResponse createRole(RoleRequest request) {
+
+		User loginUser = appCommon.currentLoginUser();
+		User ownerAdmin = loginUser.getOwnerAdmin();
+
+		request.setRoleName(request.getRoleName().toUpperCase());
+
+		Optional<Role> existingRole = findExistingRole(ownerAdmin, request.getRoleName());
+
+		if (existingRole.isPresent()) {
+
+			Role role = existingRole.get();
+
+			if (Boolean.TRUE.equals(role.getIsDelete())) {
+
+				role.setIsDelete(false);
+				role.setDescription(request.getDescription());
+
+				role.setPermissions(validatePermissions(request.getPermissions()));
+
+				return Mapper.toResponse(roleRepo.save(role));
+			}
+
+			throw new BadRequestException(AppConstant.ROLE_ALREADY_EXIXT);
+		}
+
+		Set<Permission> permissions = validatePermissions(request.getPermissions());
+
+		Role role = Role.builder().roleName(request.getRoleName()).permissions(permissions).ownerAdmin(ownerAdmin)
+				.description(request.getDescription()).createdBy(loginUser).build();
+
+		return Mapper.toResponse(roleRepo.save(role));
+	}
+
+	@Transactional
+	@Override
+	public RoleResponse updateRole(String roleId, RoleRequest request) {
+
+		Role role = checkRoleBelongToCurrentUser(roleId);
+		String updatedRoleName = request.getRoleName().toUpperCase();
+		Optional<Role> existingRole = findExistingRole(role.getOwnerAdmin(), updatedRoleName);
+		if (existingRole.isPresent() && !existingRole.get().getId().equals(roleId)) {
+
+			throw new BadRequestException(AppConstant.ROLE_ALREADY_EXIXT);
+		}
+
+		Set<Permission> newPermissions = request.getPermissions() == null ? new HashSet<>()
+				: validatePermissions(request.getPermissions());
+
+//		Set<Permission> oldPermissions = new HashSet<>(role.getPermissions());
+//		Set<Permission> removedPermissions = new HashSet<>(oldPermissions);
+//		removedPermissions.removeAll(newPermissions);
+//		if (!removedPermissions.isEmpty()) {
+//			permissionRemoval(role, removedPermissions);
+//		}
+		role.setRoleName(updatedRoleName);
+		role.setDescription(request.getDescription());
+		role.setPermissions(newPermissions);
+
+		roleRepo.save(role);
+
+		return Mapper.toResponse(role);
+	}
+
+	@Override
+	public List<RoleResponse> getAllRoll() {
+
+		User loginUser = appCommon.currentLoginUser();
+
+		if (loginUser.getOwnerAdmin() != null) {
+
+			return roleRepo.findByOwnerAdminAndIsDeleteFalse(loginUser.getOwnerAdmin()).stream().map(Mapper::toResponse)
+					.collect(Collectors.toList());
+		} else
+
+			return roleRepo.findByOwnerAdminIsNullAndIsDeleteFalse().stream().map(Mapper::toResponse)
+					.collect(Collectors.toList());
+
+	}
+
+	@Override
+	public RoleResponse getRoleById(String roleId) {
+
+		Role role = checkRoleBelongToCurrentUser(roleId);
+
+		return Mapper.toResponse(role);
+	}
+
+	@Override
+	public List<RoleResponse> getRolesByUser(String userId) {
+
+		User currentLoginUser = appCommon.currentLoginUser();
+
+		User targetUser = appCommon.getActiveUser(userId);
+		if (currentLoginUser.getOwnerAdmin() != null
+				&& !targetUser.getOwnerAdmin().getId().equals(currentLoginUser.getOwnerAdmin().getId())) {
+			throw new BadRequestException("Cannot view roles of this user");
+		}
+
+		return targetUser.getRoles().stream().filter(r -> !Boolean.TRUE.equals(r.getIsDelete())).map(Mapper::toResponse)
+				.collect(Collectors.toList());
+	}
+
+	@Override
+	public Boolean assignRolesToUser(AssignRolesRequest request) {
+
+		User currentLoginUser = appCommon.currentLoginUser();
+		User targetUser = appCommon.getActiveUser(request.getUserId());
+
+		if (currentLoginUser.getOwnerAdmin() != null
+				&& !targetUser.getOwnerAdmin().getId().equals(currentLoginUser.getOwnerAdmin().getId())) {
+			throw new BadRequestException("Cannot manage this user");
+		}
+
+		Set<Role> roles = new HashSet<>(roleRepo.findAllById(request.getRoles()));
+		if (targetUser.getRoles().stream().anyMatch(roles::contains)) {
+			throw new BadRequestException("Not assign already assigned role twice ");
+		}
+		roles.addAll(targetUser.getRoles());
+		boolean isSuperAdmin = isNewSuperAdmin(roles);
+		if (!isSuperAdmin && targetUser.getOwnerAdmin() == null) {
+			targetUser.setOwnerAdmin(targetUser);
+		}
+
+		targetUser.setRoles(roles);
+		userRepo.save(targetUser);
+		return true;
+	}
+
+	@Transactional
+	@Override
+	public Boolean removeRoleFromUser(String userId, String roleId) {
+
+		User currentLoginUser = appCommon.currentLoginUser();
+
+		User targetUser = appCommon.getActiveUser(userId);
+		Role role = checkRoleBelongToCurrentUser(roleId);
+		if (!targetUser.getRoles().contains(role)) {
+			throw new BadRequestException("User does not have this role assigned");
+		}
+		if (targetUser.getRoles().size() == 1) {
+			throw new BadRequestException("Not remove role ,because it have only have one role");
+		}
+		if (appCommon.isOwnerAdmin(targetUser)) {
+			throw new BadRequestException("Can't remove role from owner admin");
+		}
+
+		if (targetUser.getCreatedBy() == null && targetUser.getOwnerAdmin() == null)
+			throw new BadRequestException("Can not remove role from root super admin");
+		if (currentLoginUser.getOwnerAdmin() != null
+				&& !targetUser.getOwnerAdmin().getId().equals(currentLoginUser.getOwnerAdmin().getId())) {
+
+			throw new BadRequestException("Cannot manage this user");
+		}
+
+//		removePermissionFromDepandentRole(targetUser);
+		targetUser.getRoles().remove(role);
+		userRepo.save(targetUser);
+
+		return true;
+	}
+
+	@Transactional
+	@Override
+	public Boolean deleteRole(String roleId) {
+
+		Role role = checkRoleBelongToCurrentUser(roleId);
+
+		if (role.getCreatedBy() == null && role.getOwnerAdmin() == null) {
+			throw new BadRequestException("Default roles cannot be deleted");
+		}
+		if (userRepo.findUserIdsByRoleId(roleId).size() != 0)
+			throw new BadRequestException("Role assigned to user so you can not delete this role");
+//		permissionRemoval(role, role.getPermissions());
+		userRepo.removeRoleMappings(roleId);
+
+		role.setIsDelete(true);
+		roleRepo.save(role);
+
+		return true;
+	}
+
+	@Transactional
+	@Override
+	public void addPermissionToRole(String roleId, String permissionId) {
+		Role role = checkRoleBelongToCurrentUser(roleId);
+		Permission permission = permissionRepo.findById(permissionId)
+				.orElseThrow(() -> new BadRequestException("Permission not found"));
+		if (chcekPermissionsExistInRole(role, Set.of(permission))) {
+			throw new BadRequestException("Permission already found In that role");
+		}
+		role.getPermissions().add(permission);
+		roleRepo.save(role);
+	}
+
+	@Transactional
+	@Override
+	public void addPermissionsToRole(String roleId, Set<String> permissionIds) {
+
+		if (permissionIds == null || permissionIds.isEmpty()) {
+			throw new BadRequestException("Permission ids cannot be empty");
+		}
+
+		Role role = checkRoleBelongToCurrentUser(roleId);
+
+		Set<Permission> permissions = validatePermissions(permissionIds);
+		if (chcekPermissionsExistInRole(role, permissions)) {
+			throw new BadRequestException("Some permission already found In that role");
+		}
+		role.getPermissions().addAll(permissions);
+
+		roleRepo.save(role);
+	}
+
+	@Transactional
+	@Override
+	public void removePermissionFromRole(String roleId, String permissionId) {
+
+		Role role = checkRoleBelongToCurrentUser(roleId);
+		if (role.getCreatedBy() == null && role.getOwnerAdmin() == null) {
+			throw new BadRequestException("Can not remove permission from this role");
+		}
+		Permission permission = permissionRepo.findById(permissionId)
+				.orElseThrow(() -> new RuntimeException("Permission not found"));
+		if (!chcekPermissionsExistInRole(role, Set.of(permission))) {
+			throw new BadRequestException("Permission not found In that role");
+		}
+		if (!role.getPermissions().remove(permission)) {
+			return;
+		}
+
+		roleRepo.save(role);
+
+//		permissionRemoval(role, Set.of(permission));
+	}
+
+	private Role checkRoleBelongToCurrentUser(String roleId) {
+
+		User loginUser = appCommon.currentLoginUser();
+		User ownerAdmin = loginUser.getOwnerAdmin();
+
+		Role role = roleRepo.findById(roleId).filter(u -> !Boolean.TRUE.equals(u.getIsDelete()))
+				.orElseThrow(() -> new BadRequestException("Role not found"));
+		if (ownerAdmin != null) {
+			if (role.getOwnerAdmin() == null || !role.getOwnerAdmin().getId().equalsIgnoreCase(ownerAdmin.getId())) {
+				throw new BadRequestException("Role not found");
+			}
+		}
+
+		if (ownerAdmin == null && role.getOwnerAdmin() != null) {
+			throw new BadRequestException("Not manage this role");
+		}
+
+		return role;
+	}
+
+	private Optional<Role> findExistingRole(User ownerAdmin, String roleName) {
+		if (ownerAdmin != null)
+			return roleRepo.findByOwnerAdminAndRoleName(ownerAdmin, roleName);
+
+		return roleRepo.findByRoleNameAndOwnerAdminIsNullAndIsDeleteFalse(roleName);
+	}
+
+	private boolean isNewSuperAdmin(Set<Role> roles) {
+
+		if (roles.size() > 1)
+			return false;
+		if (roles.stream().filter(role -> role.getCreatedBy() == null).toList().isEmpty())
+			return false;
+		return true;
+	}
+
+	private Set<Permission> validatePermissions(Set<String> permissionIds) {
+
+		Set<Permission> permissions = new HashSet<>(permissionRepo.findAllById(permissionIds));
+
+		if (permissions.size() != permissionIds.size()) {
+			throw new BadRequestException("Invalid permission ids");
+		}
+
+		return permissions;
+	}
+
+	private boolean chcekPermissionsExistInRole(Role role, Set<Permission> permisisons) {
+		return role.getPermissions().stream().anyMatch(permisisons::contains);
+	}
+
+	private void permissionRemoval(Role parentRole, Set<Permission> removedPermissions) {
+
+		Set<User> users = userRepo.findUserIdsByRoleId(parentRole.getId());
+		if (users == null || users.isEmpty()) {
+			return;
+		}
+		Set<String> ownerAdminIds = new HashSet<>();
+		Set<String> createdByUserIds = new HashSet<>();
+
+		for (User user : users) {
+
+			Map<String, Long> permissionCount = user.getRoles().stream().flatMap(role -> role.getPermissions().stream())
+					.collect(Collectors.groupingBy(Permission::getId, Collectors.counting()));
+
+			boolean hasPermissionElsewhere = removedPermissions.stream()
+					.anyMatch(pid -> permissionCount.getOrDefault(pid, 0L) > 1);
+
+			if (hasPermissionElsewhere) {
+				continue;
+			}
+
+			User ownerAdmin = (user.getOwnerAdmin() == null) ? user : user.getOwnerAdmin();
+
+			if (ownerAdmin.getId().equals(user.getId())) {
+				ownerAdminIds.add(ownerAdmin.getId());
+			} else {
+				createdByUserIds.add(user.getId());
+			}
+		}
+
+		Set<String> dependentRoleIds = new HashSet<>();
+
+		if (!ownerAdminIds.isEmpty()) {
+			dependentRoleIds.addAll(roleRepo.findRoleIdsByOwnerAdmins(ownerAdminIds));
+		}
+
+		if (!createdByUserIds.isEmpty()) {
+			dependentRoleIds.addAll(roleRepo.findRoleIdsByCreatedByUsers(createdByUserIds));
+		}
+
+		if (dependentRoleIds.isEmpty()) {
+			return;
+		}
+
+		Set<String> permissionIds = removedPermissions.stream().map(Permission::getId).collect(Collectors.toSet());
+
+		roleRepo.removePermissionsFromRoles(dependentRoleIds, permissionIds);
+	}
+
+	private void removePermissionFromDepandentRole(User targetUser) {
+
+		Set<String> permissionIdsToremove = targetUser.getRoles().stream().flatMap(rol -> rol.getPermissions().stream())
+				.collect(Collectors.groupingBy(permission -> permission.getId(), Collectors.counting())).entrySet()
+				.stream().filter(entry -> entry.getValue() == 1).map(Map.Entry::getKey).collect(Collectors.toSet());
+
+		Set<String> dependentRoleIds;
+
+		if (targetUser.getOwnerAdmin() != null && targetUser.getOwnerAdmin().getId().equals(targetUser.getId())) {
+			dependentRoleIds = roleRepo.findRoleIdsByOwnerAdmins(Set.of(targetUser.getId()));
+
+		} else {
+			dependentRoleIds = roleRepo.findRoleIdsByCreatedByUsers(Set.of(targetUser.getId()));
+		}
+		if (!dependentRoleIds.isEmpty() && !permissionIdsToremove.isEmpty()) {
+			roleRepo.removePermissionsFromRoles(dependentRoleIds, permissionIdsToremove);
+		}
+	}
 
 }

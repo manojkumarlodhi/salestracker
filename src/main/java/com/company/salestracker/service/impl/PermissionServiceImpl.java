@@ -44,6 +44,7 @@ public class PermissionServiceImpl implements PermissionService  {
 		return role.getPermissions().stream().map(Mapper::toResponse).toList();
 	}
 
+	
 	@Override
 	public List<PermissionResponse> getAllPermissionByUser(String userId) {
 		// TODO Auto-generated method stub
