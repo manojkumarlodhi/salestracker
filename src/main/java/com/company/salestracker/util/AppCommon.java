@@ -7,7 +7,10 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
+import com.company.salestracker.entity.Deal;
+import com.company.salestracker.entity.Lead;
 import com.company.salestracker.entity.Role;
+import com.company.salestracker.entity.Sale;
 import com.company.salestracker.entity.User;
 import com.company.salestracker.entity.UserStatus;
 import com.company.salestracker.exception.BadRequestException;
@@ -153,4 +156,19 @@ public class AppCommon {
 	}
 //========================================================================	
 
+	public Lead getActiveLead(String id) {
+		return leadRepo.findByIdAndIsDeleteFalse(id).orElseThrow(() -> new ResourceNotFoundException("Lead not found"));
+	}
+	
+	
+	public Deal getActiveDeal(String id) {
+		return dealRepo.findById(id).filter(deal -> !Boolean.TRUE.equals(deal.getIsDelete()))
+				.orElseThrow(() -> new ResourceNotFoundException("Deal not found"));
+	}
+	
+	
+	public Sale getActiveSale(String id) {
+		return saleRepo.findById(id).filter(s -> !Boolean.TRUE.equals(s.getIsDelete()))
+				.orElseThrow(() -> new ResourceNotFoundException("Sale not found"));
+	}
 }

@@ -5,13 +5,24 @@ import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 
+import com.company.salestracker.dto.request.LeadRequest;
+import com.company.salestracker.dto.request.TargetRequest;
 import com.company.salestracker.dto.request.UserRequest;
+import com.company.salestracker.dto.response.DealResponse;
+import com.company.salestracker.dto.response.LeadResponse;
 import com.company.salestracker.dto.response.PaginationResponse;
 import com.company.salestracker.dto.response.PermissionResponse;
 import com.company.salestracker.dto.response.RoleResponse;
+import com.company.salestracker.dto.response.SaleResponse;
+import com.company.salestracker.dto.response.TargetResponse;
 import com.company.salestracker.dto.response.UserResponse;
+import com.company.salestracker.entity.Deal;
+import com.company.salestracker.entity.Lead;
+import com.company.salestracker.entity.LeadStatus;
 import com.company.salestracker.entity.Permission;
 import com.company.salestracker.entity.Role;
+import com.company.salestracker.entity.Sale;
+import com.company.salestracker.entity.Target;
 import com.company.salestracker.entity.User;
 
 public class Mapper {
@@ -93,5 +104,65 @@ public class Mapper {
 				.lastPage(page.isLast()).firstPage(page.isFirst()).build();
 	}
 //	===============================================================================================================
+	
+	public static Lead toEntity(LeadRequest lead) {
+		if (lead == null)
+			return null;
+		return Lead.builder().name(lead.getName()).email(lead.getEmail()).source(lead.getSource())
+				.phone(lead.getPhone()).status(LeadStatus.NEW).assignedto(null).build();
+	}
+	
+	//	===============================================================================================================
+
+	public static LeadResponse toResponse(Lead lead) {
+		if (lead == null)
+			return null;
+		return LeadResponse.builder().leadId(lead.getId()).name(lead.getName()).email(lead.getEmail())
+				.phone(lead.getPhone()).assignedToId(lead.getAssignedto() != null ? lead.getAssignedto().getId() : null)
+				.assignedPersonEmail(lead.getAssignedto() != null ? lead.getAssignedto().getEmail() : null)
+				.status(lead.getStatus().name()).source(lead.getSource()).createdAt(lead.getCreatedAt()).build();
+	}
+	
+	//	===============================================================================================================
+
+	public static DealResponse toResponse(Deal deal) {
+
+		return DealResponse.builder().dealId(deal.getId()).lead(toResponse(deal.getLead()))
+				.assignedUserId(deal.getAssignedTo() != null ? deal.getAssignedTo().getId() : null)
+				.assignedUserEmail(deal.getAssignedTo() != null ? deal.getAssignedTo().getEmail() : null)
+				.dealStage(deal.getDealStage().name()).expectedAmount(deal.getExpectedAmount())
+				.closingDate(deal.getClosingDate()).createdAt(deal.getCreatedAt()).build();
+	}
+	
+	
+	
+	public static SaleResponse toResponse(Sale sale) {
+		return SaleResponse.builder().saleId(sale.getId())
+				.dealId(sale.getDeal() != null ? sale.getDeal().getId() : null).saleAmount(sale.getSaleAmount())
+				.dealAssignedUser(sale.getDeal() != null && sale.getDeal().getAssignedTo() != null
+						? sale.getDeal().getAssignedTo().getEmail()
+						: null)
+				.paymentStatus(sale.getPaymentStatus() != null ? sale.getPaymentStatus().name() : null)
+				.invoiceNumber(sale.getInvoiceNumber()).saleDate(sale.getSaleDate())
+				.createdByUserEmail(sale.getCreatedBy() != null ? sale.getCreatedBy().getEmail() : null).build();
+	}
+	
+	
+	public static Target toEntity(TargetRequest request, User user) {
+		return Target.builder().user(user).targetMonth(request.getTargetMonth()).targetYear(request.getTargetYear())
+				.targetAmount(request.getTargetAmount()).build();
+	}
+
+	public static TargetResponse toResponse(Target target) {
+
+		return TargetResponse.builder().id(target.getId()).userId(target.getUser().getId())
+				.userEmail(target.getUser().getEmail()).userName(target.getUser().getName())
+				.targetMonth(target.getTargetMonth()).targetYear(target.getTargetYear())
+				.targetAmount(target.getTargetAmount())
+
+				.build();
+	}
+
+	
 
 }
