@@ -134,7 +134,8 @@ public class Mapper {
 				.closingDate(deal.getClosingDate()).createdAt(deal.getCreatedAt()).build();
 	}
 	
-	
+	//	===============================================================================================================
+
 	
 	public static SaleResponse toResponse(Sale sale) {
 		return SaleResponse.builder().saleId(sale.getId())
@@ -147,11 +148,15 @@ public class Mapper {
 				.createdByUserEmail(sale.getCreatedBy() != null ? sale.getCreatedBy().getEmail() : null).build();
 	}
 	
-	
+	//	===============================================================================================================
+
 	public static Target toEntity(TargetRequest request, User user) {
 		return Target.builder().user(user).targetMonth(request.getTargetMonth()).targetYear(request.getTargetYear())
 				.targetAmount(request.getTargetAmount()).build();
 	}
+
+	
+	//	===============================================================================================================
 
 	public static TargetResponse toResponse(Target target) {
 
@@ -162,6 +167,8 @@ public class Mapper {
 
 				.build();
 	}
+	//	===============================================================================================================
+
 
 	
 

@@ -389,7 +389,7 @@ public class RoleServiceImpl implements RoleService {
 			dependentRoleIds = roleRepo.findRoleIdsByCreatedByUsers(Set.of(targetUser.getId()));
 		}
 		if (!dependentRoleIds.isEmpty() && !permissionIdsToremove.isEmpty()) {
-			roleRepo.removePermissionsFromRoles(dependentRoleIds, permissionIdsToremove);
+			roleRepo.removePermissionsFromRoles(dependentRoleIds,permissionIdsToremove);
 		}
 	}
 

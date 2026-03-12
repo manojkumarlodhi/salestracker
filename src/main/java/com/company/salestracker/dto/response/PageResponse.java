@@ -1,5 +1,17 @@
 package com.company.salestracker.dto.response;
 
-public class PageResponse {
+import java.util.List;
+
+import lombok.Data;
+
+@Data
+public class PageResponse<T> {
+	private List<T> content;
+	private int page;
+	private int size;
+	private long totalElements;
+	private int totalPages;
+	private Boolean isFirstPage;
+	private Boolean isLastPage;
 
 }
